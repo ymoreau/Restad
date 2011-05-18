@@ -1,0 +1,75 @@
+RESTAD - Relational Storage for Tagged Documents
+
+Author: Yoann Moreau (moreau.yo@gmail.com)
+Licence: GNU GPL v3 (see licence file)
+
+Copyright (C) 2011 Laboratoire Informatique d'Avignon
+http://lia.univ-avignon.fr/
+
+Only work on Linux for now.
+
+-------------------------------------------------------------------------------
+  Config file
+-------------------------------------------------------------------------------
+The config file stores the database info and other common options. It is a simple
+key=value file. You can add comments using the '#' char. Commands will prompt for
+missing info then automatically store it in the config file (except password).
+
+Here are the supported keys :
+host : the database host
+database : the database name
+user : the database user name
+password : the database password (you should NOT store this in the config file)
+temp-dir : the directory-path where to save the temporary files
+
+
+-------------------------------------------------------------------------------
+  Indexing XML document(s)
+-------------------------------------------------------------------------------
+Usage: ./restad-indexer.rb [options] document-file OR documents-dir
+       ./restad-indexer.rb [options] -d
+
+Specific options:
+    -c, --config FILE                Specify the config file path.
+    -d, --database-copy-only         Copy the temporary data files into database.
+    -f, --use-temp-files             Use temporary files to store data before sending to database, uses RAM only by default.
+                                     Will automatically be set when using copy-only or index-only mode.
+    -i, --index-only                 Create the temporary data files without copying into database.
+                                     Ignored if copy-only option is set.
+    -m, --max-mem SIZE               Specify the maximum memory to use in MB. Default is 2000 MB.
+                                     This includes the memory needed for program initial data.
+    -p, --temp-dir FILE              Specify the temporary files path. Only used for index or copy only modes.
+    -r, --recursive                  Search recursively in the subdirs of the given dir.
+                                     Ignored if a file is given, or if using copy-only mode.
+    -t, --timing                     Output timing information.
+    -u, --unique-docs                Ignore documents for which file-path is already in the database.
+                                     Document file-path is stored as given to the indexing command, then it may be relative or absolute.
+                                     Ignored if using copy-only mode.
+    -v, --verbose                    Output more information.
+
+Common options:
+    -h, --help                       Show this message.
+        --version                    Show version.
+
+
+-------------------------------------------------------------------------------
+  Generating XML document
+-------------------------------------------------------------------------------
+Usage: ./restad-docgen.rb [options] document-name [output-file]
+       ./restad-docgen.rb [options] -d document-id [output-file]
+If no output-file is specified, document name in database will be used, in ./ directory.
+
+Specific options:
+    -c, --config FILE                Specify the config file path
+    -d, --docid ID                   Specify the document id. Do not specify a document-name with this option.
+    -e, --exact-path                 Search for the exact given full filename path
+                                       Search for */FILENAME by default
+    -i, --indent K                   Set the indent level to K spaces
+                                       2 by default (ignored if no-newline is set)
+    -n, --no-newline                 Produce the xml document without newlines
+    -t, --timing                     Output timing information
+    -v, --verbose                    Output more information
+
+Common options:
+    -h, --help                       Show this message
+        --version                    Show version
