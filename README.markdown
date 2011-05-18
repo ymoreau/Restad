@@ -1,8 +1,9 @@
 # Restad #
+## Relational Storage for Tagged Documents ##
 
 https://github.com/ymoreau/Restad
 
-Copyright (C) 2011 LIA (www.lia.univ-avignon.fr)
+Copyright (C) 2011 LIA (http://www.lia.univ-avignon.fr)
 
 License
 =======
