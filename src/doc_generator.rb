@@ -209,11 +209,16 @@ module Restad
         tag = tag_position_list[i]
 
         # Add the raw text until next tag
-        slice_text = raw_text.slice(current_position, tag.position)
+        slice_text = raw_text.slice(current_position, tag.position - current_position)
+        slice_text.rstrip!
         unless slice_text.empty?
           xml_string << ' ' * (depth * indent_level) if do_newline # If last tag added a newline
+          do_newline = true
+          if tag.tag_status == TagStatus::CLOSING_TAG and i > 0 and tag_position_list[i-1].tag_status == TagStatus::OPENING_TAG
+            do_newline = false
+          end
           xml_string << slice_text
-          xml_string << "\n" if use_new_line
+          xml_string << "\n" if use_new_line and do_newline
         end
 
         if tag.tag_status == TagStatus::CLOSING_TAG
@@ -221,7 +226,7 @@ module Restad
         end
 
         # Add the tag
-        xml_string << ' ' * (depth * indent_level)
+        xml_string << ' ' * (depth * indent_level) if do_newline # If last text, or tag, added a newline
         xml_string << tag.string
         current_position = tag.position
 
