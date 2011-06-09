@@ -124,7 +124,7 @@ module Restad
     def load_string_buffers
       @data_io.each_value {|stringio| stringio.rewind } # Seek 0 for reading
       sql_copy_all
-      @data_io.each_value {|stringio| stringio.rewind } # Seek 0 for future writing
+      @data_io.each_key {|key| @data_io[key] = StringIO.new }
     end
 #-------------------------------------------------------------------------------
     def sql_copy_all
