@@ -60,7 +60,7 @@ module Restad
 
         @listener.clear
 
-      rescue Restad::RestadException, PGError => e
+      rescue Restad::RestadException, PGError, ParseException => e
         @error_log << "Indexing '#{filename}' failed: #{e}\n"
         return false
       end
