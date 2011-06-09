@@ -67,6 +67,12 @@ optparser = OptionParser.new do |opts|
     options[:max_mem] = max_size
   end
 
+  options[:display_refresh_frequency] = 100
+  opts.on('-n', '--refresh-file-number NUMBER', Integer, 'Specify the number of files to parse before each refresh of the displayed infos.',
+          'Default is 100. Value is also used for frequency of checking the max memory limit.') do |count|
+    options[:display_refresh_frequency] = count
+  end
+
   options[:tempdir] = nil
   opts.on('-p', '--temp-dir FILE', String, 'Specify the temporary files path. Only used for index or copy only modes.') do |path|
     options[:tempdir] = path
@@ -188,10 +194,18 @@ unless options[:copy_only]
     raise Restad::RestadException, "Initial data use too much memory (#{used_mem}MB)" if used_mem > options[:max_mem]
 
     # Process the files
+    refreshing_count = options[:display_refresh_frequency] + 1 # Forces the refresh at first loop
     time = Time.now
     files.each do |filename|
+      next if File.directory?(filename) # Ignore directories
+
       # Do not print/puts anything during the loop, the line is updated during the process
-      print "\r#{done_files_count} / #{files.size}\t#{'Time elapsed: ' + Time.elapsed(time).to_s + 's' if options[:timing]}" if options[:verbose] or options[:timing]
+      if refreshing_count > options[:display_refresh_frequency] and (options[:verbose] or options[:timing])
+        output = ""
+        output << "#{done_files_count} / #{files.size} (#{(done_files_count.to_f/files.size).round(0)}%)     (#{used_mem}MB used)        " if options[:verbose]
+        output << "Time elapsed: #{Time.elapsed(time)}s" if options[:timing]
+        print "\r#{output}                                "
+      end
 
       # Parse the file
       if parser.parse(filename)
@@ -199,9 +213,13 @@ unless options[:copy_only]
       else
         failed_files_count += 1
       end
-#      puts "\nused: #{Restad::Utils.used_memory}, max: #{options[:max_mem]}, seuil: #{(0.8 * options[:max_mem]).to_i}"
-      parser.flush_buffers if Restad::Utils.used_memory > (0.8 * options[:max_mem]).to_i
+      if refreshing_count > options[:display_refresh_frequency]
+        used_mem = Restad::Utils.used_memory
+        parser.flush_buffers if used_mem > (0.8 * options[:max_mem]).to_i
+        refreshing_count = 1
+      end
 
+      refreshing_count += 1
     end
     parser.close_buffers # Automatically flush buffers before closing them
     puts "\r#{done_files_count} / #{files.size} file(s) done (#{failed_files_count} failed)\t#{'Time elapsed: ' + Time.elapsed(time).to_s + 's' if options[:timing]}" if options[:verbose] or options[:timing]
