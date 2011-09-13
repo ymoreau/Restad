@@ -20,7 +20,13 @@ host : the database host
 database : the database name
 user : the database user name
 password : the database password (you should NOT store this in the config file)
+
 temp-dir : the directory-path where to save the temporary files
+
+document-tag : The document root tag when parsing multiple documents in each XML file.
+docname-attribute : The document root tag attribute where to read the document name
+docname-childtag : The tag where to read the document name (child tag of document root tag)
+    Note: docname-xxx are optional and exclusive, docname-attribute will overwrite docname-childtag
 
 
 -------------------------------------------------------------------------------

@@ -24,6 +24,7 @@
 
 require 'pg'
 require './utils.rb'
+require './parser.rb'
 
 module Restad
 #===============================================================================
@@ -82,6 +83,39 @@ module Restad
       file << "\n#{key} = #{value}"
       file.close
       @map[key] = value
+    end
+#-------------------------------------------------------------------------------
+    def document_exploder
+      document_tag = @map['document-tag']
+      docname_attribute = @map['docname-attribute']
+      docname_childtag = @map['docname-childtag']
+
+      if document_tag.nil?
+        print "Document root tag: "
+        document_tag = STDIN.gets
+        return nil if document_tag.nil?
+        document_tag.chomp! 
+        add_parameter("document-tag", document_tag)
+      end
+      if docname_attribute.nil? and docname_childtag.nil?
+        puts "Name of the document can be a document root tag attribute or the content of a child of the root tag, or empty."
+        print "Document name attribute (of document root tag) [optional]: "
+        docname_attribute = STDIN.gets
+        unless docname_attribute.nil?
+          docname_attribute.chomp! 
+          add_parameter("docname-attribute", docname_attribute)
+        else
+          print "Document name tag (child of document root tag) [optional]: "
+          docname_childtag = STDIN.gets
+          unless docname_childtag.nil?
+            docname_childtag.chomp!
+            add_parameter("docname-childtag", docname_childtag)
+          end
+        end
+      end
+      docname_childtag = nil unless docname_attribute.nil?
+
+      return DocumentExploder.new(document_tag, docname_attribute, docname_childtag)
     end
 #-------------------------------------------------------------------------------
     def database_connection

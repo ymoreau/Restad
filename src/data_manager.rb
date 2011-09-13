@@ -34,6 +34,8 @@ module Restad
 #===============================================================================
   class DataManager
 
+    attr_reader :doc_name
+
     @@file_names = {:docs => "tmp_docs.dat", :tags => "tmp_tags.dat", \
       :tag_names => "tmp_tag_names.dat", :tag_attributes => "tmp_tag_attributes.dat", \
       :attribute_names => "tmp_attribute_names.dat", :attribute_values => "tmp_attribute_values.dat", \
@@ -151,8 +153,8 @@ module Restad
 #-------------------------------------------------------------------------------
 # Documents
 #-------------------------------------------------------------------------------
-    def start_document doc_name
-      if @unique_doc_names
+    def start_document doc_name = ""
+      if @unique_doc_names and (not doc_name.empty?)
         raise RestadException, "Doc '#{doc_name}' already exists in database" if @doc_names.has_key?(doc_name)
         @doc_names.store(doc_name,nil)
       end
@@ -160,6 +162,14 @@ module Restad
       @doc_buffers.each_value {|value| value.clear }
       @doc_name = doc_name
       @doc_count += 1
+    end
+#-------------------------------------------------------------------------------
+    def set_doc_name doc_name
+      if @unique_doc_names
+        raise RestadException, "Doc '#{doc_name}' already exists in database" if @doc_names.has_key?(doc_name)
+        @doc_names.store(doc_name,nil)
+      end
+      @doc_name = doc_name if @doc_name.empty?
     end
 #-------------------------------------------------------------------------------
     def end_document text

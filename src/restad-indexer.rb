@@ -39,6 +39,12 @@ optparser = OptionParser.new do |opts|
   opts.separator ""
   opts.separator "Specific options:"
 
+  options[:multiple_documents] = false
+  opts.on('-a', '--multiple-documents', 'XML file(s) contain multiple documents.',
+          'Will explode the input file(s) input depending on config.') do
+    options[:multiple_documents] = true
+  end
+
   options[:configfile] = Restad::ConfigParser::DEFAULT_FILE
   opts.on('-c', '--config FILE', String, 'Specify the config file path.') do |file|
     options[:configfile] = file
@@ -134,6 +140,7 @@ corpus = ARGV[0]
 #-------------------------------------------------------------------------------
 # Initialize the config
 db = nil
+doc_exploder = nil
 unless options[:use_files]
   options[:use_files] = (options[:copy_only] or options[:index_only])
 end
@@ -157,7 +164,11 @@ begin
 
   db = config.database_connection
   puts "Database connection successful" if options[:verbose]
-
+  
+  if options[:multiple_documents]
+    doc_exploder = config.document_exploder
+    raise Restad::RestadException, "Missing config info (document root tag)" if doc_exploder.nil?
+  end
 rescue Restad::RestadException => e
   db.finish unless db.nil?
   $stderr.puts e
@@ -187,7 +198,7 @@ unless options[:copy_only]
     puts "#{total_files_count} file(s) found#{' in ' + Time.elapsed(time).to_s + 's' if options[:timing]}" if options[:verbose] or options[:timing]
 
     time = Time.now
-    parser = Restad::Parser.new(db, options[:use_files], options[:unique_docs], options[:verbose], temp_dir)
+    parser = Restad::Parser.new(db, options[:use_files], options[:unique_docs], options[:verbose], temp_dir, doc_exploder)
     puts "Parser initialized in #{Time.elapsed(time).to_s}s" if options[:timing]
     used_mem = Restad::Utils.used_memory
     puts "Using #{used_mem}MB initial data" if options[:verbose]
@@ -202,7 +213,7 @@ unless options[:copy_only]
       # Do not print/puts anything during the loop, the line is updated during the process
       if refreshing_count > options[:display_refresh_frequency] and (options[:verbose] or options[:timing])
         output = ""
-        output << "#{done_files_count} / #{files.size} (#{(done_files_count.to_f/files.size).round(0)}%)     (#{used_mem}MB used)        " if options[:verbose]
+        output << "#{done_files_count} / #{files.size} (#{((done_files_count.to_f/files.size)*100).round}%)     (#{used_mem}MB used)        " if options[:verbose]
         output << "Time elapsed: #{Time.elapsed(time)}s" if options[:timing]
         print "\r#{output}                                "
       end

@@ -30,6 +30,16 @@ include REXML
 
 module Restad
 #===============================================================================
+  class DocumentExploder
+    attr_reader :root_tag_name, :docname_attribute_name, :docname_tag_name
+#-------------------------------------------------------------------------------
+    def initialize root_tag_name, docname_attribute_name, docname_tag_name
+      @root_tag_name = root_tag_name
+      @docname_attribute_name = docname_attribute_name
+      @docname_tag_name = docname_tag_name
+    end
+  end
+#===============================================================================
   class Parser
     TAG_NAME_MAX_LENGTH = 255
     ATTRIBUTE_NAME_MAX_LENGTH = 255
@@ -38,29 +48,31 @@ module Restad
     attr_reader :error_log
 
 #-------------------------------------------------------------------------------
-    def initialize db, use_temporary_files, use_unique_doc_names, is_verbose, temp_dir
+    def initialize db, use_temporary_files, use_unique_doc_names, is_verbose, temp_dir, document_exploder
       @error_log = ""
-      @use_temporary_files = use_temporary_files
+#      @use_temporary_files = use_temporary_files
       @data_manager = DataManager.new(db, use_temporary_files, temp_dir)
       @data_manager.set_unique_doc_names(is_verbose) if use_unique_doc_names
       @data_manager.init_parsing(is_verbose)
-      @listener = Listener.new(@data_manager, @error_log)
+      @multiple_documents = (not document_exploder.nil?)
+      @listener = Listener.new(self, @data_manager, document_exploder, @error_log)
     end
 #-------------------------------------------------------------------------------
     def parse filename
       begin
-        @data_manager.start_document(filename)
+        @data_manager.start_document(filename) unless @multiple_documents
 
+        @listener.clear
         parser = Parsers::StreamParser.new(File.new(filename), @listener)
         parser.parse
 
-        text = @listener.raw_text
-        index_text(text)
-        @data_manager.end_document(text)
+        unless @multiple_documents
+          text = @listener.raw_text
+          index_text(text)
+          @data_manager.end_document(text)
+        end
 
-        @listener.clear
-
-      rescue Restad::RestadException, PGError, ParseException => e
+      rescue RestadException, PGError, ParseException => e
         @error_log << "Indexing '#{filename}' failed: #{e}\n"
         return false
       end
@@ -110,23 +122,52 @@ module Restad
     attr_reader :raw_text
 
 #-------------------------------------------------------------------------------
-    def initialize data_manager, log_string
+    def initialize parser, data_manager, document_exploder, log_string
+      @parser = parser
       @data_manager = data_manager
+      @document_exploder = document_exploder
       @stack = Array.new
       @tag_names_count = Hash.new 0 # default value
       @raw_text = String.new
+      @depth = 0
       @error_log = log_string
+      # If doc exploder is nil, we parse the whole file
+      @is_parsing_doc = @document_exploder.nil?
     end
 #-------------------------------------------------------------------------------
     def clear
       @stack.clear
       @tag_names_count.clear
       @raw_text.clear
+      @depth = 0
+      @waiting_for_docname = false
     end
 #-------------------------------------------------------------------------------
     def tag_start name, attributes
+      @depth += 1
       name.downcase!
       name.slice!(Parser::TAG_NAME_MAX_LENGTH, name.size - 1) if name.size > Parser::TAG_NAME_MAX_LENGTH
+     
+      # Check for a starting document
+      unless @is_parsing_doc
+        if name == @document_exploder.root_tag_name
+          @is_parsing_doc = true
+          @starting_depth = @depth
+          @data_manager.start_document
+          unless @document_exploder.docname_attribute_name.nil?
+            docname = attributes[@document_exploder.docname_attribute_name]
+            raise RestadException, "Document has no attribute '#{@document_exploder.docname_attribute_name}'" if docname.nil?
+            @data_manager.set_doc_name(docname)
+          end
+        else
+          return # ignore out-of-document tags
+        end
+      end
+
+      if (not @document_exploder.nil?) and @is_parsing_doc and (not @document_exploder.docname_tag_name.nil?)
+        @waiting_for_docname = name == @document_exploder.docname_tag_name and (not @data_manager.doc_name.empty?)
+      end
+
       current_tag = Tag.new(name)
 
       current_tag.id_tag_name = @data_manager.tag_name_id(name)
@@ -165,17 +206,48 @@ module Restad
     end
 #-------------------------------------------------------------------------------
     def tag_end name
+      return unless @is_parsing_doc
+
+      # Check for the end of the document (if multiple documents)
+      if @is_parsing_doc and (not @document_exploder.nil?)
+        if name == @document_exploder.root_tag_name
+          if @starting_depth < @depth
+            @error_log << "Document contains a document-root-tag '#{@document_exploder.root_tag_name}'\n"
+          elsif @starting_depth > @depth
+            raise RestadException, "Expecting a matching document-root-tag (i.e. matching the begining one)"
+          else # @starting_depth == @depth -> matching end-tag
+            tag = @stack.last
+            tag.start_offset = @last_offset if tag.start_offset.nil?
+            tag.end_offset = @last_offset
+            @data_manager.add_tag(tag)
+            @parser.index_text(@raw_text)
+            @data_manager.end_document(@raw_text)
+            clear
+            @is_parsing_doc = false
+            return
+          end
+        end
+      end
+
       tag = @stack.last
       tag.start_offset = @last_offset if tag.start_offset.nil?
       tag.end_offset = @last_offset
       @data_manager.add_tag(tag)
 
+      @depth -= 1
       @stack.pop
     end
 #-------------------------------------------------------------------------------
     def text text
+      return unless @is_parsing_doc
+
       text.strip!
       text.gsub!(/\s+/, " ")
+
+      if @waiting_for_docname
+        @data_manager.set_doc_name(text)
+        @waiting_for_docname = false;
+      end
 
       # Set the starting offset to all tags since last text
       unless @stack.empty?
