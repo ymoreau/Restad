@@ -1,0 +1,26 @@
+-- document 1 
+[text]
+First document restad sample data This is Restad sample content for all-in xml data. Some text.
+
+[tags] name - parent - starting offset - ending offset
+document - NULL - 0 - 96
+title - document - 0 - 15
+meta - document - 15 - 34
+content - document - 34 - 96
+summary - content - 34 - 85
+b - summary - 42 - 49
+i - summary - 68 - 75
+p - content - 85 - 96
+
+-- document 2
+[text]
+Second document restad sample data First paragraph! Second paragraph...
+
+[tags] name - parent - starting offset - ending offset
+document - NULL - O - 72
+title - document - 0 - 16
+meta - document - 16 - 35
+content - document - 35 - 72
+p - content - 35 - 52
+p - content - 52 - 72
+
