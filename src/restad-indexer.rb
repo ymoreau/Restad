@@ -168,6 +168,8 @@ begin
   if options[:multiple_documents]
     doc_exploder = config.document_exploder
     raise Restad::RestadException, "Missing config info (document root tag)" if doc_exploder.nil?
+    doc_exploder.refresh_frequency = options[:display_refresh_frequency]
+    doc_exploder.max_mem = options[:max_mem]
   end
 rescue Restad::RestadException => e
   db.finish unless db.nil?

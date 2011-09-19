@@ -32,6 +32,7 @@ module Restad
 #===============================================================================
   class DocumentExploder
     attr_reader :root_tag_name, :docname_attribute_name, :docname_tag_name
+    attr_accessor :refresh_frequency, :max_mem
 #-------------------------------------------------------------------------------
     def initialize root_tag_name, docname_attribute_name, docname_tag_name
       @root_tag_name = root_tag_name
@@ -50,7 +51,6 @@ module Restad
 #-------------------------------------------------------------------------------
     def initialize db, use_temporary_files, use_unique_doc_names, is_verbose, temp_dir, document_exploder
       @error_log = ""
-#      @use_temporary_files = use_temporary_files
       @data_manager = DataManager.new(db, use_temporary_files, temp_dir)
       @data_manager.set_unique_doc_names(is_verbose) if use_unique_doc_names
       @data_manager.init_parsing(is_verbose)
@@ -62,6 +62,7 @@ module Restad
       begin
         @data_manager.start_document(filename) unless @multiple_documents
 
+        @listener.start_new_file
         @listener.clear
         parser = Parsers::StreamParser.new(File.new(filename), @listener)
         parser.parse
@@ -126,6 +127,7 @@ module Restad
       @parser = parser
       @data_manager = data_manager
       @document_exploder = document_exploder
+      @docs_count = 0
       @stack = Array.new
       @tag_names_count = Hash.new 0 # default value
       @raw_text = String.new
@@ -133,6 +135,10 @@ module Restad
       @error_log = log_string
       # If doc exploder is nil, we parse the whole file
       @is_parsing_doc = @document_exploder.nil?
+    end
+#-------------------------------------------------------------------------------
+    def start_new_file
+      @docs_count = 0
     end
 #-------------------------------------------------------------------------------
     def clear
@@ -154,6 +160,7 @@ module Restad
           @is_parsing_doc = true
           @starting_depth = @depth
           @data_manager.start_document
+          @docs_count += 1
           unless @document_exploder.docname_attribute_name.nil?
             docname = attributes[@document_exploder.docname_attribute_name]
             raise RestadException, "Document has no attribute '#{@document_exploder.docname_attribute_name}'" if docname.nil?
@@ -222,6 +229,13 @@ module Restad
             @data_manager.add_tag(tag)
             @parser.index_text(@raw_text)
             @data_manager.end_document(@raw_text)
+
+            if @docs_count > @document_exploder.refresh_frequency
+              used_mem = Restad::Utils.used_memory
+              @parser.flush_buffers if used_mem > (0.8 * @document_exploder.max_mem).to_i
+              @docs_count = 0
+            end
+
             clear
             @is_parsing_doc = false
             return
