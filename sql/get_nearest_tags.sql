@@ -19,7 +19,6 @@ BEGIN
 
         -- For each position of the word
         FOR position IN SELECT unnest(token_row.positions) LOOP
-            --RAISE NOTICE 'DOC:% POS:%', token_row.id_doc, position;
             SELECT t.id_tag INTO nearest_tag_values.id_tag
               FROM (SELECT id_tag, parent_tag FROM tags WHERE id_doc = token_row.id_doc AND
                     starting_offset < position AND ending_offset > position) AS t
@@ -27,9 +26,9 @@ BEGIN
                   (SELECT parent_tag FROM tags WHERE id_doc = token_row.id_doc AND
                    parent_tag IS NOT NULL AND starting_offset < position AND ending_offset > position)
               ;
+            RETURN NEXT nearest_tag_values;
         END LOOP;
 
-        RETURN NEXT nearest_tag_values;
     END LOOP;
     RETURN;
 END
