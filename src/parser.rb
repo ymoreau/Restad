@@ -42,6 +42,7 @@ module Restad
   end
 #===============================================================================
   class Parser
+    DOC_NAME_MAX_LENGTH = 255
     TAG_NAME_MAX_LENGTH = 255
     ATTRIBUTE_NAME_MAX_LENGTH = 255
     TOKEN_MAX_LENGTH = 255
@@ -60,6 +61,7 @@ module Restad
 #-------------------------------------------------------------------------------
     def parse filename
       begin
+        filename.slice!(Parser::DOC_NAME_MAX_LENGTH, filename.size - 1) if filename.size > Parser::DOC_NAME_MAX_LENGTH
         @data_manager.start_document(filename) unless @multiple_documents
 
         @listener.start_new_file
@@ -164,6 +166,10 @@ module Restad
           unless @document_exploder.docname_attribute_name.nil?
             docname = attributes[@document_exploder.docname_attribute_name]
             raise RestadException, "Document has no attribute '#{@document_exploder.docname_attribute_name}'" if docname.nil?
+            if docname.size > Parser::DOC_NAME_MAX_LENGTH
+              docname.slice!(Parser::DOC_NAME_MAX_LENGTH, docname.size - 1)
+              @error_log << "Document name is too long (>#{Parser::DOC_NAME_MAX_LENGTH}) :\n\t'#{docname}'\n"
+            end
             @data_manager.set_doc_name(docname)
           end
         else
@@ -259,7 +265,12 @@ module Restad
       text.gsub!(/\s+/, " ")
 
       if @waiting_for_docname
-        @data_manager.set_doc_name(text)
+        docname = text
+        if docname.size > Parser::DOC_NAME_MAX_LENGTH
+          docname.slice!(Parser::DOC_NAME_MAX_LENGTH, docname.size - 1)
+          @error_log << "Document name is too long (>#{Parser::DOC_NAME_MAX_LENGTH}) :\n\t'#{docname}'\n"
+        end
+        @data_manager.set_doc_name(docname)
         @waiting_for_docname = false;
       end
 

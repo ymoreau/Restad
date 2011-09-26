@@ -47,7 +47,7 @@ module Restad
         
       db.put_copy_end
       while res = db.get_result
-        raise PGError, "COPY failed for '#{table_label}'" if res.result_status == PGresult::PGRES_FATAL_ERROR
+        raise PGError, "COPY failed for '#{table_label}'\n\t->#{res.result_error_message}" if res.result_status == PGresult::PGRES_FATAL_ERROR
       end
     end
 #-------------------------------------------------------------------------------
