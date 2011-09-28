@@ -75,5 +75,6 @@ create table inverted_index
 (
     id_token int, -- references tokens(id_token)
     id_doc int, -- references docs(id_doc)
-    positions int[]
+    positions int[],
+    nearest_tags_id int[]
 );
