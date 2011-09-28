@@ -17,10 +17,10 @@ BEGIN
         FOR position IN SELECT unnest(token_row.positions) LOOP
             SELECT t.id_tag INTO r_id_tag
               FROM (SELECT id_tag, parent_tag FROM tags WHERE id_doc = token_row.id_doc AND
-                    starting_offset < position AND ending_offset > position) AS t
+                    starting_offset <= position AND ending_offset > position) AS t
               WHERE t.id_tag NOT IN 
                   (SELECT parent_tag FROM tags WHERE id_doc = token_row.id_doc AND
-                   parent_tag IS NOT NULL AND starting_offset < position AND ending_offset > position)
+                   parent_tag IS NOT NULL AND starting_offset <= position AND ending_offset > position)
               ;
             RETURN NEXT;
         END LOOP;
