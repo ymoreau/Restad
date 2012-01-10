@@ -92,7 +92,7 @@ module Restad
       @tag_names_count = DBUtils.max_id(@db, 'id_tag_name', 'tag_names')
       @attribute_names_count = DBUtils.max_id(@db, 'id_attribute_name', 'attribute_names')
       @attribute_values_count = DBUtils.max_id(@db, 'id_attribute_value', 'attribute_values')
-      @token_count = DBUtils.max_id(@db, 'id_token', 'tokens')
+#@token_count = DBUtils.max_id(@db, 'id_token', 'tokens')
 
       # Read the existing unique strings
       @known_tag_names = Hash.new
@@ -112,9 +112,9 @@ module Restad
       res.each {|row| @known_attribute_values[row['attribute_value']] = row['id_attribute_value'].to_i }
       puts "#{@known_attribute_values.size} attribute values read in database" if is_verbose
 
-      res = @db.exec("SELECT * FROM tokens")
-      res.each {|row| @known_tokens[row['token']] = row['id_token'].to_i }
-      puts "#{@known_tokens.size} tokens read in database" if is_verbose
+#      res = @db.exec("SELECT * FROM tokens")
+#      res.each {|row| @known_tokens[row['token']] = row['id_token'].to_i }
+#      puts "#{@known_tokens.size} tokens read in database" if is_verbose
     end
 #-------------------------------------------------------------------------------
     def load_temporary_files
@@ -137,8 +137,8 @@ module Restad
         DBUtils.sql_copy(@db, "tag_attributes(id_tag, id_attribute_name, id_attribute_value)", @data_io[:tag_attributes], "tag_attributes")
         DBUtils.sql_copy(@db, "attribute_names(id_attribute_name, attribute_name)", @data_io[:attribute_names], "attribute_names")
         DBUtils.sql_copy(@db, "attribute_values(id_attribute_value, attribute_value)", @data_io[:attribute_values], "attribute_values")
-        DBUtils.sql_copy(@db, "tokens(id_token, token)", @data_io[:tokens], "tokens")
-        DBUtils.sql_copy(@db, "inverted_index(id_doc,id_token,positions)", @data_io[:inverted_index], "inverted_index")
+#        DBUtils.sql_copy(@db, "tokens(id_token, token)", @data_io[:tokens], "tokens")
+#        DBUtils.sql_copy(@db, "inverted_index(id_doc,id_token,positions)", @data_io[:inverted_index], "inverted_index")
       end
     end
 #-------------------------------------------------------------------------------
@@ -229,7 +229,7 @@ module Restad
     def token_id token
       unless @known_tokens.has_key? token
         @token_count += 1
-        @doc_buffers[:tokens] << "#{@token_count}\t'#{PGconn.escape_string(token)}'\n"
+#@doc_buffers[:tokens] << "#{@token_count}\t'#{PGconn.escape_string(token)}'\n"
         @known_tokens[token] = @token_count
       end
       return @known_tokens[token]
@@ -245,7 +245,7 @@ module Restad
       end
       array_string += "}"
       
-      @doc_buffers[:inverted_index] << "#{@doc_count}\t#{id_token}\t'#{array_string}'\n"
+#      @doc_buffers[:inverted_index] << "#{@doc_count}\t#{id_token}\t'#{array_string}'\n"
     end
   end
 

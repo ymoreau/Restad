@@ -5,7 +5,8 @@ create table docs
 (
     id_doc int,
     doc_name varchar(256),
-    text text
+    text text,
+    text_tsvector tsvector
 );
 
 --------------------------------------------------------------------------------
@@ -59,22 +60,3 @@ create table tag_attributes
     id_attribute_value int -- references attribute_values(id_attribute_value)
 );
 
---------------------------------------------------------------------------------
--- Table : tokens
-drop table if exists tokens cascade;
-create table tokens
-(
-    id_token int,
-    token varchar(256) -- unique(token)
-);
-
---------------------------------------------------------------------------------
--- Table : inverted_index
-drop table if exists inverted_index cascade;
-create table inverted_index
-(
-    id_token int, -- references tokens(id_token)
-    id_doc int, -- references docs(id_doc)
-    positions int[],
-    nearest_tags_id int[]
-);

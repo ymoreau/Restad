@@ -71,7 +71,7 @@ module Restad
 
         unless @multiple_documents
           text = @listener.raw_text
-          index_text(text)
+#          index_text(text)
           @data_manager.end_document(text)
         end
 
@@ -92,11 +92,11 @@ module Restad
         token = text.match(/(\w{2,})/, offset)[1].to_s
         token.slice!(Parser::TOKEN_MAX_LENGTH, token.size - 1) if token.size > Parser::TOKEN_MAX_LENGTH
 
-        token_positions[@data_manager.token_id(token)].push position
+#        token_positions[@data_manager.token_id(token)].push position
         offset = position + token.length
       end
 
-      token_positions.each {|id_token, positions| @data_manager.add_token_index(id_token, positions) }
+#token_positions.each {|id_token, positions| @data_manager.add_token_index(id_token, positions) }
     end
 #-------------------------------------------------------------------------------
     def flush_buffers
@@ -233,7 +233,7 @@ module Restad
             tag.start_offset = @last_offset if tag.start_offset.nil?
             tag.end_offset = @last_offset
             @data_manager.add_tag(tag)
-            @parser.index_text(@raw_text)
+#@parser.index_text(@raw_text)
             @data_manager.end_document(@raw_text)
 
             if @docs_count > @document_exploder.refresh_frequency
