@@ -42,8 +42,8 @@ create table tag_names
 drop table if exists tags cascade;
 create table tags
 (
-    id_doc int references docs(id_doc),
-    id_tag int,
+    id_doc int references docs(id_doc) on delete cascade,
+    id_tag int not null,
     id_tag_name int references tag_names(id_tag_name),
     tag_order_position int not null,
     parent_id int,
@@ -74,8 +74,8 @@ create table attribute_names
 drop table if exists tag_attributes cascade;
 create table tag_attributes
 (
-    id_doc int,
-    id_tag int, 
+    id_doc int not null,
+    id_tag int not null, 
     id_attribute_name int references attribute_names(id_attribute_name),
     attribute_value text
     -- primary key(id_tag,id_doc)

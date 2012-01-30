@@ -34,8 +34,7 @@ VERSION = '0.1'
 # Parse the options
 options = Hash.new
 optparser = OptionParser.new do |opts|
-  opts.banner = "Usage: #{$0} [options] document-file OR documents-dir",
-                "file(s) will be parsed as XML unless file extension is .dtd"
+  opts.banner = "Usage: #{$0} [options] document-file OR documents-dir\n        File(s) will be parsed as XML unless file extension is .dtd"
 
   opts.separator ""
 

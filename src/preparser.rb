@@ -100,13 +100,15 @@ module Restad
     def parse_dtd filename
       content = File.read(filename)
       content.scan(/\<!ELEMENT (\w*) .*\>/) do |capture|
-        tagname = capture[0].downcase
-        tagname.slice!(Parser::TAG_NAME_MAX_LENGTH, tagname.size - 1) if tagname.size > Parser::TAG_NAME_MAX_LENGTH
+        tagname = capture[0]
+        tagname.strict_clean!
+        tagname.cut!(Parser::TAG_NAME_MAX_LENGTH)
         @tmp_tag_names[tagname] = nil unless @tag_names.has_key?(tagname) or @existing_tag_names.has_key?(tagname)
       end
       content.scan(/\<!ATTLIST \w* (\w*) .*\>/) do |capture|
-        attname = capture[0].downcase
-        attname.slice!(Parser::ATTRIBUTE_NAME_MAX_LENGTH, attname.size - 1) if attname.size > Parser::ATTRIBUTE_NAME_MAX_LENGTH
+        attname = capture[0]
+        attname.strict_clean!
+        attname.cut!(Parser::ATTRIBUTE_NAME_MAX_LENGTH)
         @tmp_attribute_names[attname] = nil unless @attribute_names.has_key?(attname) or @existing_attribute_names.has_key?(attname)
       end
       return true
@@ -137,15 +139,17 @@ module Restad
 
 #-------------------------------------------------------------------------------
     def tag_start name, attributes
-      tagname = name.downcase
-      tagname.slice!(Parser::TAG_NAME_MAX_LENGTH, tagname.size - 1) if tagname.size > Parser::TAG_NAME_MAX_LENGTH
+      tagname = name
+      tagname.strict_clean!
+      tagname.cut!(Parser::TAG_NAME_MAX_LENGTH)
       @preparser.tmp_tag_names[tagname] = nil unless @preparser.tag_names.has_key?(tagname) or @preparser.existing_tag_names.has_key?(tagname)
       
       attributes.each do |frozen_att_name, att_value|
         next if frozen_att_name.empty?
 
-        attname = frozen_att_name.downcase
-        attname.slice!(Parser::ATTRIBUTE_NAME_MAX_LENGTH, attname.size - 1) if attname.size > Parser::ATTRIBUTE_NAME_MAX_LENGTH
+        attname = frozen_att_name.dup
+        attname.strict_clean!
+        attname.cut!(Parser::ATTRIBUTE_NAME_MAX_LENGTH)
         @preparser.tmp_attribute_names[attname] = nil unless @preparser.attribute_names.has_key?(attname) or @preparser.existing_attribute_names.has_key?(attname)
       end
     end
