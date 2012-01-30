@@ -3,7 +3,11 @@
 
 https://github.com/ymoreau/Restad
 
-Copyright (C) 2011 LIA (http://www.lia.univ-avignon.fr)
+The design goals of Restad are : XML documents should be stored without lost information, any well-formed XML document should be stored and queried, and query processing on fulltext or XML logical structure should be efficient.
+
+Learn more about the project in the wiki : https://github.com/ymoreau/Restad/wiki
+
+Copyright (C) 2011-2012 LIA (http://www.lia.univ-avignon.fr)
 
 License
 =======
