@@ -84,11 +84,11 @@ BEGIN
         offset := get_offset(docrow.text, pos); -- Map to the offset position
         -- Get the nearest tag id for this term position in the current doc
         SELECT t.id_tag INTO lca_tag_id
-          FROM (SELECT id_tag, parent_tag FROM tags WHERE id_doc = doc_id AND
+          FROM (SELECT id_tag, parent_id FROM tags WHERE id_doc = doc_id AND
                 starting_offset <= offset AND ending_offset > offset) AS t
           WHERE t.id_tag NOT IN 
-              (SELECT parent_tag FROM tags WHERE id_doc = doc_id AND
-               parent_tag IS NOT NULL AND starting_offset <= offset AND ending_offset > offset)
+              (SELECT parent_id FROM tags WHERE id_doc = doc_id AND
+               parent_id IS NOT NULL AND starting_offset <= offset AND ending_offset > offset)
           ;
         RETURN NEXT;
     END LOOP;
