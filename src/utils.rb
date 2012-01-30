@@ -28,6 +28,7 @@ module Restad
 #===============================================================================
   class DBUtils
     BUFFER_SIZE = 4096
+    MAX_TRIES = 4
 
 #-------------------------------------------------------------------------------
 # It assumes io is opened
@@ -51,10 +52,10 @@ module Restad
       end
     end
 #-------------------------------------------------------------------------------
-    def self.max_id db, field_name, table_name
-      res = db.exec("SELECT max(#{field_name}) FROM #{table_name}")
+    def self.next_id db, table_name
+      res = db.exec("SELECT nextval('#{table_name}'::regclass)")
       return res.getvalue(0,0).to_i if res.ntuples == 1
-      return 0
+      return -1
     end
   end
 #===============================================================================
@@ -73,6 +74,24 @@ module Restad
   class RestadException < StandardError
   end
 
+end
+
+#===============================================================================
+class String
+  def clean!
+    strip!
+    gsub!(/\s+/, " ")
+  end
+#-------------------------------------------------------------------------------
+  def strict_clean!
+    strip!
+    gsub!(/\s+/, "_")
+    downcase!
+  end
+#-------------------------------------------------------------------------------
+  def cut! length
+    slice!(length, size - 1) if size > length
+  end
 end
 
 #===============================================================================

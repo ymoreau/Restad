@@ -45,7 +45,6 @@ module Restad
     DOC_NAME_MAX_LENGTH = 255
     TAG_NAME_MAX_LENGTH = 255
     ATTRIBUTE_NAME_MAX_LENGTH = 255
-    TOKEN_MAX_LENGTH = 255
 
     attr_reader :error_log
 
@@ -61,8 +60,9 @@ module Restad
 #-------------------------------------------------------------------------------
     def parse filename
       begin
-        filename.slice!(Parser::DOC_NAME_MAX_LENGTH, filename.size - 1) if filename.size > Parser::DOC_NAME_MAX_LENGTH
-        @data_manager.start_document(filename) unless @multiple_documents
+        docname = filename
+        docname.cut!(Parser::DOC_NAME_MAX_LENGTH)
+        @data_manager.start_document(docname) unless @multiple_documents
 
         @listener.start_new_file
         @listener.clear
@@ -71,7 +71,6 @@ module Restad
 
         unless @multiple_documents
           text = @listener.raw_text
-#          index_text(text)
           @data_manager.end_document(text)
         end
 
@@ -80,23 +79,6 @@ module Restad
         return false
       end
       return true
-    end
-#-------------------------------------------------------------------------------
-    def index_text text
-      token_positions = Hash.new { |hash, key| hash[key] = Array.new }
-
-      offset = 0
-      while true
-        position = text.index(/\w{2,}/, offset)
-        break if position.nil?
-        token = text.match(/(\w{2,})/, offset)[1].to_s
-        token.slice!(Parser::TOKEN_MAX_LENGTH, token.size - 1) if token.size > Parser::TOKEN_MAX_LENGTH
-
-#        token_positions[@data_manager.token_id(token)].push position
-        offset = position + token.length
-      end
-
-#token_positions.each {|id_token, positions| @data_manager.add_token_index(id_token, positions) }
     end
 #-------------------------------------------------------------------------------
     def flush_buffers
@@ -153,8 +135,8 @@ module Restad
 #-------------------------------------------------------------------------------
     def tag_start name, attributes
       @depth += 1
-      name.downcase!
-      name.slice!(Parser::TAG_NAME_MAX_LENGTH, name.size - 1) if name.size > Parser::TAG_NAME_MAX_LENGTH
+      name.clean!
+      name.cut!(Parser::TAG_NAME_MAX_LENGTH)
      
       # Check for a starting document
       unless @is_parsing_doc
@@ -188,7 +170,6 @@ module Restad
       @tag_names_count[name] += 1
 
       current_tag.parent_tag = @stack.last.id_tag unless @stack.empty?
-
       current_tag.id_tag = @data_manager.tag_id
       add_attributes(current_tag.id_tag, attributes) unless attributes.empty?
       @stack.push current_tag
@@ -199,8 +180,9 @@ module Restad
       attributes.each do |frozen_att_name, att_value|
         next if frozen_att_name.empty?
 
-        att_name = frozen_att_name.downcase
-        att_name.slice!(Parser::ATTRIBUTE_NAME_MAX_LENGTH, att_name.size - 1) if att_name.size > Parser::ATTRIBUTE_NAME_MAX_LENGTH
+        att_name = frozen_att_name.dup
+        att_name.strict_clean!
+        att_name.cut!(Parser::ATTRIBUTE_NAME_MAX_LENGTH)
 
         # Check if the attribute name was not already set for this tag
         if att_names.include?(att_name)
@@ -210,11 +192,8 @@ module Restad
         att_names.push(att_name)
 
         att_name_id = @data_manager.attribute_name_id(att_name)
-
-        att_value.gsub!(/\s+/, " ")
-        att_value_id = @data_manager.attribute_value_id(att_value)
-        
-        @data_manager.add_attribute(tag_id, att_name_id, att_value_id)
+        att_value.clean!
+        @data_manager.add_attribute(tag_id, att_name_id, att_value)
       end
     end
 #-------------------------------------------------------------------------------
@@ -233,9 +212,11 @@ module Restad
             tag.start_offset = @last_offset if tag.start_offset.nil?
             tag.end_offset = @last_offset
             @data_manager.add_tag(tag)
-#@parser.index_text(@raw_text)
             @data_manager.end_document(@raw_text)
 
+# TODO
+# refresh
+# message
             if @docs_count > @document_exploder.refresh_frequency
               used_mem = Restad::Utils.used_memory
               @parser.flush_buffers if used_mem > (0.8 * @document_exploder.max_mem).to_i
@@ -261,8 +242,7 @@ module Restad
     def text text
       return unless @is_parsing_doc
 
-      text.strip!
-      text.gsub!(/\s+/, " ")
+      text.clean!
 
       if @waiting_for_docname
         docname = text

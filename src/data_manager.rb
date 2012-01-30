@@ -37,9 +37,7 @@ module Restad
     attr_reader :doc_name
 
     @@file_names = {:docs => "tmp_docs.dat", :tags => "tmp_tags.dat", \
-      :tag_names => "tmp_tag_names.dat", :tag_attributes => "tmp_tag_attributes.dat", \
-      :attribute_names => "tmp_attribute_names.dat", :attribute_values => "tmp_attribute_values.dat", \
-      :inverted_index => "tmp_inverted_index.dat", :tokens => "tmp_tokens.dat"}
+      :tag_attributes => "tmp_tag_attributes.dat"}
 
 #-------------------------------------------------------------------------------
     def initialize db, use_files, temp_dir
@@ -48,6 +46,7 @@ module Restad
       @temp_dir = temp_dir
       @data_io = Hash.new
       @doc_buffers = Hash.new
+# TODO fix for prototype 2 if used in parallel
       @unique_doc_names = false
     end
 #-------------------------------------------------------------------------------
@@ -86,35 +85,41 @@ module Restad
       # Initialize the doc-buffers
       @@file_names.each_key {|key| @doc_buffers[key] = String.new}
 
-      # Read the id counts
-      @doc_count = DBUtils.max_id(@db, 'id_doc', 'docs')
-      @tag_count = DBUtils.max_id(@db, 'id_tag', 'tags')
-      @tag_names_count = DBUtils.max_id(@db, 'id_tag_name', 'tag_names')
-      @attribute_names_count = DBUtils.max_id(@db, 'id_attribute_name', 'attribute_names')
-      @attribute_values_count = DBUtils.max_id(@db, 'id_attribute_value', 'attribute_values')
-#@token_count = DBUtils.max_id(@db, 'id_token', 'tokens')
-
       # Read the existing unique strings
       @known_tag_names = Hash.new
+      cache_tag_names
       @known_attribute_names = Hash.new
-      @known_attribute_values = Hash.new
-      @known_tokens = Hash.new
+      cache_attribute_names
 
+      puts "#{@known_tag_names.size} tag names read in database" if is_verbose
+      puts "#{@known_attribute_names.size} attribute names read in database" if is_verbose
+    end
+#-------------------------------------------------------------------------------
+    def cache_tag_names
       res = @db.exec("SELECT * FROM tag_names")
       res.each {|row| @known_tag_names[row['tag_name']] = row['id_tag_name'].to_i }
-      puts "#{@known_tag_names.size} tag names read in database" if is_verbose
-
+    end
+#-------------------------------------------------------------------------------
+    def add_tag_name name
+      begin
+        res = @db.exec("INSERT INTO tag_names(tag_name) VALUES('#{PGconn.escape_string(name)}');")
+      rescue PGError => e # Ignore any unique tag error
+      raise e
+      end
+      cache_tag_names
+    end
+#-------------------------------------------------------------------------------
+    def cache_attribute_names
       res = @db.exec("SELECT * FROM attribute_names")
       res.each {|row| @known_attribute_names[row['attribute_name']] = row['id_attribute_name'].to_i }
-      puts "#{@known_attribute_names.size} attribute names read in database" if is_verbose
-
-      res = @db.exec("SELECT * FROM attribute_values")
-      res.each {|row| @known_attribute_values[row['attribute_value']] = row['id_attribute_value'].to_i }
-      puts "#{@known_attribute_values.size} attribute values read in database" if is_verbose
-
-#      res = @db.exec("SELECT * FROM tokens")
-#      res.each {|row| @known_tokens[row['token']] = row['id_token'].to_i }
-#      puts "#{@known_tokens.size} tokens read in database" if is_verbose
+    end
+#-------------------------------------------------------------------------------
+    def add_attribute_name name
+      begin
+        res = @db.exec("INSERT INTO attribute_names(attribute_name) VALUES('#{PGconn.escape_string(name)}');")
+      rescue PGError # Ignore any unique tag error
+      end
+      cache_attribute_names
     end
 #-------------------------------------------------------------------------------
     def load_temporary_files
@@ -132,16 +137,12 @@ module Restad
     def sql_copy_all
       @db.transaction do
         DBUtils.sql_copy(@db, "docs(id_doc, doc_name, text)", @data_io[:docs], "docs")
-        DBUtils.sql_copy(@db, "tags(id_tag, id_doc, id_tag_name, tag_num, parent_tag, starting_offset, ending_offset)", @data_io[:tags], "tags")
-        DBUtils.sql_copy(@db, "tag_names(id_tag_name, tag_name)", @data_io[:tag_names], "tag_names")
-        DBUtils.sql_copy(@db, "tag_attributes(id_tag, id_attribute_name, id_attribute_value)", @data_io[:tag_attributes], "tag_attributes")
-        DBUtils.sql_copy(@db, "attribute_names(id_attribute_name, attribute_name)", @data_io[:attribute_names], "attribute_names")
-        DBUtils.sql_copy(@db, "attribute_values(id_attribute_value, attribute_value)", @data_io[:attribute_values], "attribute_values")
-#        DBUtils.sql_copy(@db, "tokens(id_token, token)", @data_io[:tokens], "tokens")
-#        DBUtils.sql_copy(@db, "inverted_index(id_doc,id_token,positions)", @data_io[:inverted_index], "inverted_index")
+        DBUtils.sql_copy(@db, "tags(id_doc, id_tag, id_tag_name, tag_order_position, parent_id, starting_offset, ending_offset)", @data_io[:tags], "tags")
+        DBUtils.sql_copy(@db, "tag_attributes(id_tag, id_doc, id_attribute_name, attribute_value)", @data_io[:tag_attributes], "tag_attributes")
       end
     end
 #-------------------------------------------------------------------------------
+# TODO fix for prototype 2 if used in parallel
     def set_unique_doc_names is_verbose
       @unique_doc_names = true
       @doc_names = Hash.new
@@ -154,17 +155,20 @@ module Restad
 # Documents
 #-------------------------------------------------------------------------------
     def start_document doc_name = ""
+# TODO fix for prototype 2 if used in parallel
       if @unique_doc_names and (not doc_name.empty?)
         raise RestadException, "Doc '#{doc_name}' already exists in database" if @doc_names.has_key?(doc_name)
         @doc_names.store(doc_name,nil)
       end
 
       @doc_buffers.each_value {|value| value.clear }
+      @tag_count = 0
       @doc_name = doc_name
-      @doc_count += 1
+      @doc_id = DBUtils::next_id(@db, "docs_id_doc_seq")
     end
 #-------------------------------------------------------------------------------
     def set_doc_name doc_name
+# TODO fix for prototype 2 if used in parallel
       if @unique_doc_names
         raise RestadException, "Doc '#{doc_name}' already exists in database" if @doc_names.has_key?(doc_name)
         @doc_names.store(doc_name,nil)
@@ -173,7 +177,7 @@ module Restad
     end
 #-------------------------------------------------------------------------------
     def end_document text
-      @doc_buffers[:docs] << "#{@doc_count}\t'#{PGconn.escape_string(@doc_name)}'\t'#{PGconn.escape_string(text)}'\n"
+      @doc_buffers[:docs] << "#{@doc_id}\t'#{PGconn.escape_string(@doc_name)}'\t'#{PGconn.escape_string(text)}'\n"
 
       @doc_buffers.each {|key, value| @data_io[key] << value }
     end
@@ -181,10 +185,12 @@ module Restad
 # Tags
 #-------------------------------------------------------------------------------
     def tag_name_id tag_name
-      unless @known_tag_names.has_key? tag_name
-        @tag_names_count += 1
-        @doc_buffers[:tag_names] << "#{@tag_names_count}\t'#{PGconn.escape_string(tag_name)}'\n"
-        @known_tag_names[tag_name] = @tag_names_count
+      tries = 0
+      until @known_tag_names.has_key?(tag_name)
+        raise RestadException, "Can not add new tag name : '#{tag_name}' #{tries} tries." if tries > DBUtils::MAX_TRIES
+
+        add_tag_name(tag_name)
+        tries += 1
       end
       return @known_tag_names[tag_name]
     end
@@ -197,55 +203,24 @@ module Restad
       raise RestadException, "Wrong starting and ending offset : #{tag.start_offset};#{tag.end_offset}" if tag.start_offset > tag.end_offset
 
       tag.parent_tag = "" if tag.parent_tag.nil?
-      @doc_buffers[:tags] << "#{tag.id_tag}\t#{@doc_count}\t#{tag.id_tag_name}\t#{tag.tag_num}\t#{tag.parent_tag}\t#{tag.start_offset}\t#{tag.end_offset}\n"
+      @doc_buffers[:tags] << "#{@doc_id}\t#{tag.id_tag}\t#{tag.id_tag_name}\t#{tag.tag_num}\t#{tag.parent_tag}\t#{tag.start_offset}\t#{tag.end_offset}\n"
     end
 #-------------------------------------------------------------------------------
 # Attributes
 #-------------------------------------------------------------------------------
     def attribute_name_id attribute_name
-      unless @known_attribute_names.has_key? attribute_name
-        @attribute_names_count += 1
-        @doc_buffers[:attribute_names] << "#{@attribute_names_count}\t'#{PGconn.escape_string(attribute_name)}'\n"
-        @known_attribute_names[attribute_name] = @attribute_names_count
+      tries = 0
+      until @known_attribute_names.has_key?(attribute_name)
+        raise RestadException, "Can not add new attribute name : '#{attribute_name}' #{tries} tries." if tries > DBUtils::MAX_TRIES
+
+        add_attribute_name(attribute_name)
+        tries += 1
       end
       return @known_attribute_names[attribute_name]
     end
 #-------------------------------------------------------------------------------
-    def attribute_value_id attribute_value
-      unless @known_attribute_values.has_key? attribute_value
-        @attribute_values_count += 1
-        @doc_buffers[:attribute_values] << "#{@attribute_values_count}\t'#{PGconn.escape_string(attribute_value)}'\n"
-        @known_attribute_values[attribute_value] = @attribute_values_count
-      end
-      return @known_attribute_values[attribute_value]
-    end
-#-------------------------------------------------------------------------------
-    def add_attribute tag_id, attribute_name_id, attribute_value_id
-      @doc_buffers[:tag_attributes] << "#{tag_id}\t#{attribute_name_id}\t'#{attribute_value_id}'\n"
-    end
-#-------------------------------------------------------------------------------
-# Index and tokens
-#-------------------------------------------------------------------------------
-    def token_id token
-      unless @known_tokens.has_key? token
-        @token_count += 1
-#@doc_buffers[:tokens] << "#{@token_count}\t'#{PGconn.escape_string(token)}'\n"
-        @known_tokens[token] = @token_count
-      end
-      return @known_tokens[token]
-    end
-#-------------------------------------------------------------------------------
-    def add_token_index id_token, positions
-      is_first = true
-      array_string = "{"
-      positions.each do |position|
-        array_string += "," unless is_first
-        is_first = false
-        array_string += position.to_s
-      end
-      array_string += "}"
-      
-#      @doc_buffers[:inverted_index] << "#{@doc_count}\t#{id_token}\t'#{array_string}'\n"
+    def add_attribute tag_id, attribute_name_id, attribute_value
+      @doc_buffers[:tag_attributes] << "#{@doc_id}\t#{tag_id}\t#{attribute_name_id}\t'#{PGconn.escape_string(attribute_value)}'\n"
     end
   end
 

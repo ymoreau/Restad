@@ -24,15 +24,16 @@ $$ LANGUAGE 'plpgsql';
 
 --------------------------------------------------------------------------------
 -- Returns a XPath-like string for the given tag_id
-CREATE OR REPLACE FUNCTION get_path(id INTEGER) RETURNS TEXT AS $$
+CREATE OR REPLACE FUNCTION xterm_path(iddoc int, idtag int) RETURNS text AS $$
   SELECT '/' || path FROM
-    (WITH RECURSIVE pathto(path, id) AS (
-      SELECT CAST(tag_name || '[' || tag_num::text || ']' AS TEXT), parent_tag FROM tags NATURAL JOIN tag_names WHERE id_tag = $1
+    (WITH RECURSIVE pathto(path, idtag) AS (
+      SELECT CAST(tag_name || '[' || tag_order_position::text || ']' AS TEXT), parent_id FROM tags NATURAL JOIN tag_names 
+        WHERE id_doc = $1 AND id_tag = $2
       UNION
-      SELECT CAST(names.tag_name || '[' || tags.tag_num::text || ']/' || pathto.path AS TEXT), parent_tag
-        FROM tags NATURAL JOIN tag_names AS names, pathto WHERE tags.id_tag = pathto.id)
-      SELECT * FROM pathto) AS pathto(path, id)
-    WHERE id IS NULL;
+      SELECT CAST(names.tag_name || '[' || tags.tag_order_position::text || ']/' || pathto.path AS TEXT), parent_id
+        FROM tags NATURAL JOIN tag_names AS names, pathto WHERE tags.id_doc = $1 AND tags.id_tag = pathto.idtag)
+      SELECT * FROM pathto) AS pathto(path, idtag)
+    WHERE idtag IS NULL;
 $$ LANGUAGE 'sql';
 
 --------------------------------------------------------------------------------
@@ -65,7 +66,6 @@ BEGIN
         idoc := docrow.id_doc;
         tsrank := docrow.rank;
         RETURN NEXT;
-
     END LOOP;
     RETURN;
 END
@@ -73,7 +73,7 @@ $$ LANGUAGE 'plpgsql';
 
 --------------------------------------------------------------------------------
 -- Returns the tag id of the LCA for the given term in the given document
-CREATE OR REPLACE FUNCTION xterm_match(qterm text, doc_id int) RETURNS TABLE(nearest_tag_id int) AS $$
+CREATE OR REPLACE FUNCTION xterm_lca(qterm text, doc_id int) RETURNS TABLE(lca_tag_id int) AS $$
 DECLARE
     docrow record;
     pos int;
@@ -83,12 +83,12 @@ BEGIN
     FOR pos IN SELECT get_term_positions(qterm, docrow.text_tsvector) FROM docs WHERE id_doc = doc_id LOOP
         offset := get_offset(docrow.text, pos); -- Map to the offset position
         -- Get the nearest tag id for this term position in the current doc
-        SELECT t.id_tag INTO nearest_tag_id
-          FROM (SELECT id_tag, parent_tag FROM tags WHERE id_doc = doc_id AND
+        SELECT t.id_tag INTO lca_tag_id
+          FROM (SELECT id_tag, parent_id FROM tags WHERE id_doc = doc_id AND
                 starting_offset <= offset AND ending_offset > offset) AS t
           WHERE t.id_tag NOT IN 
-              (SELECT parent_tag FROM tags WHERE id_doc = doc_id AND
-               parent_tag IS NOT NULL AND starting_offset <= offset AND ending_offset > offset)
+              (SELECT parent_id FROM tags WHERE id_doc = doc_id AND
+               parent_id IS NOT NULL AND starting_offset <= offset AND ending_offset > offset)
           ;
         RETURN NEXT;
     END LOOP;

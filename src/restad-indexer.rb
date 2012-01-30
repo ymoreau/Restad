@@ -51,7 +51,7 @@ optparser = OptionParser.new do |opts|
   end
 
   options[:copy_only] = false
-  opts.on('-d', '--database-copy-only', 'Copy the temporary data files into database.') do
+  opts.on('-d', '--copy-only', 'Copy the temporary data files into database.') do
     options[:copy_only] = true
   end
 
@@ -75,7 +75,8 @@ optparser = OptionParser.new do |opts|
 
   options[:display_refresh_frequency] = 100
   opts.on('-n', '--refresh-file-number NUMBER', Integer, 'Specify the number of files to parse before each refresh of the displayed infos.',
-          'Default is 100. Value is also used for frequency of checking the max memory limit.') do |count|
+          'Default is 100. Value is also used for frequency of checking the max memory limit.',
+          'Does not work when parsing a multiple doc file.') do |count|
     options[:display_refresh_frequency] = count
   end
 
@@ -95,12 +96,13 @@ optparser = OptionParser.new do |opts|
     options[:timing] = true
   end
 
+# NOT AVAILABLE FOR PARALLEL RUNNING
   options[:unique_docs] = false
-  opts.on('-u', '--unique-docs', 'Ignore documents for which file-path is already in the database.',\
-          'Document file-path is stored as given to the indexing command, then it may be relative or absolute.',\
-          'Ignored if using copy-only mode.') do
-    options[:unique_docs] = true
-  end
+#  opts.on('-u', '--unique-docs', 'Ignore documents for which file-path is already in the database.',\
+#          'Document file-path is stored as given to the indexing command, then it may be relative or absolute.',\
+#          'Ignored if using copy-only mode.') do
+#    options[:unique_docs] = true
+#  end
 
   options[:verbose] = false
   opts.on('-v', '--verbose', 'Output more information.') do
@@ -235,7 +237,7 @@ unless options[:copy_only]
       refreshing_count += 1
     end
     parser.close_buffers # Automatically flush buffers before closing them
-    puts "\r#{done_files_count} / #{files.size} file(s) done (#{failed_files_count} failed)\t#{'Time elapsed: ' + Time.elapsed(time).to_s + 's' if options[:timing]}" if options[:verbose] or options[:timing]
+    puts "\r#{done_files_count} / #{files.size} file(s) done (#{failed_files_count} failed)    #{'Time elapsed: ' + Time.elapsed(time).to_s + 's' if options[:timing]}" if options[:verbose] or options[:timing]
 
   rescue Restad::RestadException, PGError => e
     db.finish
