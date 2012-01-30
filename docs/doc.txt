@@ -1,0 +1,235 @@
+===============================================================================
+    RESTAD - Relational Storage for Tagged Documents
+
+    Author: Yoann Moreau (moreau.yo@gmail.com)
+    Licence: GNU GPL v3 (see licence file)
+
+    Copyright (C) 2011 Laboratoire Informatique d'Avignon
+    http://lia.univ-avignon.fr/
+===============================================================================
+
+The design goals of Restad are : XML documents should be stored without lost 
+information, any well-formed XML document should be stored and queried, and 
+query processing on fulltext or XML logical structure should be efficient.
+
+We chose to use a relational database management system because those systems 
+have been widely used and improved to store and query very large volumes of 
+data. We chose PostgreSQL because it's "the world's most advanced open source 
+database".
+
+Restad uses pl/pgSQL for querying and Ruby client programs for indexing.
+
+-------------------------------------------------------------------------------
+    HOW TO INSTALL
+-------------------------------------------------------------------------------
+
+Restad needs a PostgreSQL server, Ruby and PosgreSQL Ruby extension.
+
+- Install PostgreSQL :
+      http://wiki.postgresql.org/wiki/Detailed_installation_guides
+
+- Install Ruby :
+      http://www.ruby-lang.org/en/downloads/
+
+- Install Ruby pg gem :
+      http://rubygems.org/gems/pg
+
+
+Then you need to create and set a database for Restad.
+
+- Create database :
+      http://www.postgresql.org/docs/8.4/static/sql-createdatabase.html
+
+- Set the full text search configuration :
+      http://www.postgresql.org/docs/8.4/static/textsearch.html
+      http://www.postgresql.org/docs/8.4/static/textsearch-intro.html#TEXTSEARCH-INTRO-CONFIGURATIONS
+
+- Create tables using the sql/database.sql file
+- Create functions using the sql/restad.sql file
+
+You can run sql files with the psql tool and the \i filepath command or with 
+the pgAdmin GUI tool.
+
+
+-------------------------------------------------------------------------------
+    INDEXING XML DOCUMENTS
+-------------------------------------------------------------------------------
+
+Restad uses a few commands to store and index XML documents in the database.
+
+-------------------------------------------------------------------------------
+-- Config file
+
+This file is used to store the database connection config and others, if file 
+does not exist commands will prompt the needed information and create a config 
+file in the current directory (except password which is not stored 
+automatically).
+
+It is a simple key=value file. You can add comments using the '#' char.
+
+Supported keys :
+host : the database host
+database : the database name
+user : the database user name
+password : the database password (you should NOT store this in the config file)
+
+temp-dir : the directory-path where to save the temporary files
+
+document-tag : The document root tag when parsing multiple documents in each 
+    XML file.
+docname-attribute : The document root tag attribute where to read the 
+    document name
+docname-childtag : The tag where to read the document name (child tag of 
+    document root tag)
+
+    Note: docname-xxx are optional and exclusive, docname-attribute will 
+    overwrite docname-childtag.
+
+
+-------------------------------------------------------------------------------
+-- Preparsing (optional)
+
+This tool is meant to speed up the actual parsing task by storing the tag and 
+attribute names of the documents. You can "preparse" DTD or XML. This task can 
+not be parallelized.
+
+Usage: ./restad-preparser.rb [options] document-file OR documents-dir
+       File(s) will be parsed as XML unless file extension is .dtd
+
+     -c, --config FILE                Specify the config file path.
+     -n, --refresh-file-number NUMBER Specify the number of files to parse before each refresh of the displayed infos.
+                                      Default is 100.
+     -r, --recursive                  Search recursively in the subdirs of the given dir.
+                                      Ignored if a file is given.
+     -t, --timing                     Output timing information.
+     -v, --verbose                    Output more information.
+
+ Common options:
+     -h, --help                       Show this message.
+         --version                    Show version.
+
+
+-------------------------------------------------------------------------------
+-- Parsing
+
+The parsing task can be parallelized, that means you can run many indexer 
+commands at the same time. The parsing command is caching parsed data until the 
+defined maximum memory use is reached, then data is flushed in the database. 
+You can alternatively use files for temporary data. It's less efficient but 
+files can be used in case of crash of the indexer (however the last document 
+data would be incomplete !).
+
+The command also caches the tag-names and attribute-names from the database, 
+every new tag-name or attribute-name parsed will be added and the names will be 
+cached again. This can takes time if it occurs too often because of the database 
+connection needed for adding and then caching. If you have a lot of different 
+tag-names/attribute-names in your documents, consider preparsing before parsing 
+(see above).
+
+Usage: ./restad-indexer.rb [options] document-file OR documents-dir
+       ./restad-indexer.rb [options] -d
+
+Specific options:
+    -a, --multiple-documents         XML file(s) contain multiple documents.
+                                     Will explode the input file(s) input depending on config.
+    -c, --config FILE                Specify the config file path.
+    -d, --copy-only                  Copy the temporary data files into database.
+    -f, --use-temp-files             Use temporary files to store data before sending to database, uses RAM only by default.
+                                     Will automatically be set when using copy-only or index-only mode.
+    -i, --index-only                 Create the temporary data files without copying into database.
+                                     Ignored if copy-only option is set.
+    -m, --max-mem SIZE               Specify the maximum memory to use in MB. Default is 2000 MB.
+                                     This includes the memory needed for program initial data.
+    -n, --refresh-file-number NUMBER Specify the number of files to parse before each refresh of the displayed infos.
+                                     Default is 100. Value is also used for frequency of checking the max memory limit.
+                                     Does not work when parsing a multiple doc file.
+    -p, --temp-dir FILE              Specify the temporary files path. Only used for index or copy only modes.
+    -r, --recursive                  Search recursively in the subdirs of the given dir.
+                                     Ignored if a file is given, or if using copy-only mode.
+    -t, --timing                     Output timing information.
+    -v, --verbose                    Output more information.
+
+Common options:
+    -h, --help                       Show this message.
+        --version                    Show version.
+
+
+-------------------------------------------------------------------------------
+    SQL FUNCTIONS
+-------------------------------------------------------------------------------
+
+Restad provides some functions for PostgreSql SQL queries.
+
+The fulltext search module of PostgreSql uses a configuration to break 
+documents into tokens, convert tokens to normalized form and reject stop words. 
+Restad uses the default configuration for text indices. It's up to you to 
+configure PostgreSql with appropriate settings for your documents language.
+
+
+-------------------------------------------------------------------------------
+-- Full text ranking
+
+    xdocs_rank(query tsquery, nb_result_limit int default 1000) RETURNS TABLE(idoc int, tsrank float)
+
+This function will return the highest ranked documents for the given tsquery. 
+You can limit the number of returned documents with the nb_result_limit arg. 
+You have to use the to_tsquery PostgreSql function for the tsquery argument. 
+The xdocs_rank function is based on the ts_rank PostgreSql function, with 
+default parameters.
+
+Example :
+
+SELECT * FROM xdocs_rank(to_tsquery('sql & language'), 4);
+  idoc   |  tsrank  
+---------+----------
+   13769 | 0.805933
+  296175 |  0.51096
+  124483 | 0.471456
+   12405 | 0.452399
+
+
+-------------------------------------------------------------------------------
+-- Get the lowest common ancestors of a word
+
+    xterm_lca(term text, doc_id int) RETURNS TABLE(lca_tag_id int)
+
+This function will return the lowest common ancestor for each term occurrence 
+in the given document. It only returns the tag ids, referencing rows in the 
+tags table (only for the given doc id).
+
+Example :
+
+SELECT * FROM xterm_lca('sql', 13769);
+ lca_tag_id 
+------------
+          3
+          5
+         17
+         17
+         20
+...
+
+
+-------------------------------------------------------------------------------
+-- Get the XPath of a tag
+
+    xterm_path(doc_id int, tag_id int) RETURNS text
+
+This function will return a XPath-like string of the given tag. The string is 
+built like this /tag-name[tag-name order position]/child tag-name[ ... The 
+order position starts from 0 and is proper to each tag-name in the whole 
+document.
+
+Example :
+
+SELECT * FROM xterm_path(13769, 3);
+    xterm_path     
+-------------------
+ /page[0]/title[0]
+
+SELECT * FROM xterm_path(13769, 40);
+     xterm_path      
+---------------------
+ /page[0]/s[0]/p[16]
+
+
