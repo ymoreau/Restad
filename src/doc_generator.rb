@@ -58,13 +58,14 @@ module Restad
 
 #===============================================================================
   class TagPosition
-    attr_reader :position, :string, :tag_status
+    attr_reader :position, :string, :tag_status, :ignore_newline
 
 #-------------------------------------------------------------------------------
-    def initialize position, string, tag_status
+    def initialize position, string, tag_status, ignore_newline = false
       @position = position
       @string = string
       @tag_status = tag_status
+      @ignore_newline = ignore_newline
     end
   end
 
@@ -74,9 +75,10 @@ module Restad
     attr_writer :output_path
     
 #-------------------------------------------------------------------------------
-    def initialize db, output_path, doc_id = nil
+    def initialize db, output_path, excluded_tags, doc_id = nil
       @db = db
       @output_path = output_path
+      @excluded_tags = excluded_tags
       @doc_id = doc_id
     end
 #-------------------------------------------------------------------------------
@@ -125,7 +127,7 @@ module Restad
     def attribute_string tag_id
       str = ""
       res = @db.exec("SELECT attribute_name, attribute_value FROM tag_attributes NATURAL JOIN \
-                attribute_names NATURAL JOIN attribute_values WHERE id_tag = #{tag_id}")
+                attribute_names WHERE id_doc = #{@doc_id} AND id_tag = #{tag_id}")
       res.each do |row|
         str << " #{row['attribute_name']}=\"#{row['attribute_value']}\""
       end
@@ -146,12 +148,12 @@ module Restad
       raw_text = res.getvalue(0,0)
 
       # Get the tags
-      res = @db.exec("SELECT id_tag, tag_name, parent_tag, starting_offset, ending_offset \
+      res = @db.exec("SELECT id_tag, tag_name, parent_id, starting_offset, ending_offset \
               FROM tags NATURAL JOIN tag_names WHERE id_doc = #{@doc_id} ORDER BY starting_offset DESC")
       puts "Data read from database in #{Time.elapsed(time)}s" if display_timing
       doc_tags = Array.new
       res.each do |row|
-        doc_tags << TagData.new(row['id_tag'].to_i, row['tag_name'], row['parent_tag'].to_i, \
+        doc_tags << TagData.new(row['id_tag'].to_i, row['tag_name'], row['parent_id'].to_i, \
                 row['starting_offset'].to_i, row['ending_offset'].to_i, attribute_string(row['id_tag']))
       end
 #      doc_tags.sort! {|a,b| a.starting_offset > b.starting_offset} # Already sorted by SQL query
@@ -178,14 +180,15 @@ module Restad
 
               # Add the next tag
               tag_status = TagStatus::OPENING_TAG
+              ignore_nl = @excluded_tags.include?(tag.name)
               if tag.starting_offset == tag.ending_offset
                 tag_status = TagStatus::SELF_CLOSING_TAG if (consecutive_tags.index {|t| t.parent == tag.id}).nil?
               end
-              tag_position_list.push(TagPosition.new(tag.starting_offset, tag.starting_string, tag_status))
+              tag_position_list.push(TagPosition.new(tag.starting_offset, tag.starting_string, tag_status, ignore_nl))
 
               # Add the ending tag unless the tag was self-closing
               unless tag_status == TagStatus::SELF_CLOSING_TAG
-                ending_tags_stack.push(TagPosition.new(tag.ending_offset, tag.ending_string, TagStatus::CLOSING_TAG))
+                ending_tags_stack.push(TagPosition.new(tag.ending_offset, tag.ending_string, TagStatus::CLOSING_TAG, ignore_nl))
               end
 
               consecutive_tags.delete_at(i)
@@ -218,10 +221,17 @@ module Restad
             do_newline = false
           end
           xml_string << slice_text
-          xml_string << "\n" if use_new_line and do_newline
+          if use_new_line and do_newline
+            if tag.ignore_newline
+              xml_string << " "
+              do_newline = false # Cancel the next indent
+            else
+              xml_string << "\n" 
+            end
+          end
         end
 
-        if tag.tag_status == TagStatus::CLOSING_TAG
+        if tag.tag_status == TagStatus::CLOSING_TAG and !tag.ignore_newline
           depth -= 1
         end
 
@@ -232,15 +242,22 @@ module Restad
 
         # Add a potentiel newline
         do_newline = false
-        if tag.tag_status == TagStatus::SELF_CLOSING_TAG or tag.tag_status == TagStatus::CLOSING_TAG
+        if (tag.tag_status == TagStatus::SELF_CLOSING_TAG or tag.tag_status == TagStatus::CLOSING_TAG)
           do_newline = true
-        else
+        elsif !tag.ignore_newline
           depth += 1
         end
         if tag_position_list.size > i+1 and tag.position == tag_position_list[i+1].position
           do_newline = true
         end
-        xml_string << "\n" if use_new_line and do_newline
+        if use_new_line and do_newline
+          if tag.ignore_newline
+            xml_string << " "
+            do_newline = false # Cancel the next indent
+          else
+            xml_string << "\n" 
+          end
+        end
       end # each_index
       xml_string << raw_text.slice(current_position, raw_text.size-1)
 

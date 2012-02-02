@@ -49,8 +49,8 @@ optparser = OptionParser.new do |opts|
   end
 
   options[:exactpath] = false
-  opts.on('-e', '--exact-path', 'Search for the exact given full filename path', \
-          '  Search for */FILENAME by default') do |file|
+  opts.on('-e', '--exact-path', 'Search for the exact given full filename path in the database', \
+          '  Search for */FILENAME by default') do
     options[:exactpath] = true
   end
 
@@ -73,6 +73,11 @@ optparser = OptionParser.new do |opts|
   options[:verbose] = false
   opts.on('-v', '--verbose', 'Output more information') do
     options[:verbose] = true
+  end
+
+  options[:excluded] = ""
+  opts.on('-x', '--excluded TAGS', String, 'Does not do newline for these tags. Separate with comma.') do |excluded|
+    options[:excluded] = excluded
   end
 
   opts.separator ""
@@ -115,7 +120,9 @@ begin
   db = config.database_connection
   puts "Database connection successful" if options[:verbose]
 
-  generator = Restad::DocGenerator.new(db, output_file, options[:doc_id])
+  excluded_tags = options[:excluded].split(",")
+
+  generator = Restad::DocGenerator.new(db, output_file, excluded_tags, options[:doc_id])
   # Search for the document id
   if generator.doc_id.nil?
     time = Time.now
