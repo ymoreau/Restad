@@ -74,7 +74,7 @@ create table attribute_names
 drop table if exists tag_attributes cascade;
 create table tag_attributes
 (
-    id_doc int not null,
+    id_doc int references docs(id_doc) on delete cascade,
     id_tag int not null, 
     id_attribute_name int references attribute_names(id_attribute_name),
     attribute_value text
