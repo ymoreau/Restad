@@ -74,7 +74,7 @@ module Restad
           @data_manager.end_document(text)
         end
 
-      rescue RestadException, PGError, ParseException => e
+      rescue => e
         @error_log << "Indexing '#{filename}' failed: #{e}\n"
         return false
       end
@@ -113,7 +113,7 @@ module Restad
       @document_exploder = document_exploder
       @docs_count = 0
       @stack = Array.new
-      @tag_names_count = Hash.new 0 # default value
+      @tag_names_count = Hash.new { |hash,key| hash[key] = Hash.new(1) } # MAP[tag_name][parent_id] => count
       @raw_text = String.new
       @depth = 0
       @error_log = log_string
@@ -166,11 +166,12 @@ module Restad
       current_tag = Tag.new(name)
 
       current_tag.id_tag_name = @data_manager.tag_name_id(name)
-      current_tag.tag_num = @tag_names_count[name]
-      @tag_names_count[name] += 1
-
       current_tag.parent_tag = @stack.last.id_tag unless @stack.empty?
       current_tag.id_tag = @data_manager.tag_id
+
+      current_tag.tag_num = @tag_names_count[name][current_tag.parent_tag]
+      @tag_names_count[name][current_tag.parent_tag] += 1
+
       add_attributes(current_tag.id_tag, attributes) unless attributes.empty?
       @stack.push current_tag
     end
