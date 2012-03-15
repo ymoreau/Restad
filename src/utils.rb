@@ -23,6 +23,8 @@
 #
 
 require 'pg'
+require 'stringio'
+require 'zip/zip'
 
 module Restad
 #===============================================================================
@@ -68,6 +70,20 @@ module Restad
       raise RestadException, "pmap result did not match the expected format" if match_data.nil?
       size = match_data.captures.first.to_i / 1024
       return size
+    end
+  end
+#===============================================================================
+  class ZipReader
+    def self.open_odt filename
+      Zip::ZipFile::open(filename) do |zip|
+        zip.each do |file|
+          if file.name = "content.xml"
+            data = StringIO.new(file.get_input_stream.read)
+            return data
+          end
+        end
+        raise RestadException, "odt file does not contain 'content.xml'" # Only raised when no return has been called
+      end
     end
   end
 #===============================================================================

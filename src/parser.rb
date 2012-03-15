@@ -66,7 +66,16 @@ module Restad
 
         @listener.start_new_file
         @listener.clear
-        parser = Parsers::StreamParser.new(File.new(filename), @listener)
+
+        case File.extname(filename)
+        when ".xml", ".XML"
+          io = File.new(filename)
+        when ".odt", ".ODT"
+          io = ZipReader.open_odt(filename)
+        else
+          raise RestadException, "Wrong file format '#{File.extname(filename)}'"
+        end
+        parser = Parsers::StreamParser.new(io, @listener)
         parser.parse
 
         unless @multiple_documents

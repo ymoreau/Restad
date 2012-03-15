@@ -138,7 +138,7 @@ module Restad
       @db.transaction do
         DBUtils.sql_copy(@db, "docs(id_doc, doc_name, text)", @data_io[:docs], "docs")
         DBUtils.sql_copy(@db, "tags(id_doc, id_tag, id_tag_name, tag_order_position, parent_id, starting_offset, ending_offset)", @data_io[:tags], "tags")
-        DBUtils.sql_copy(@db, "tag_attributes(id_tag, id_doc, id_attribute_name, attribute_value)", @data_io[:tag_attributes], "tag_attributes")
+        DBUtils.sql_copy(@db, "tag_attributes(id_doc, id_tag, id_attribute_name, attribute_value)", @data_io[:tag_attributes], "tag_attributes")
       end
     end
 #-------------------------------------------------------------------------------
