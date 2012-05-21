@@ -1,11 +1,15 @@
 # Restad #
 ## Relational Storage for Tagged Documents ##
 
-https://github.com/ymoreau/Restad
+
+**Project has moved to https://sourceforge.net/projects/restad/ and is now developped in C++/Qt.
+The current repo will keep the Ruby-prototype version available but is not maintened anymore.**
+
+* * *
 
 The design goals of Restad are : XML documents should be stored without lost information, any well-formed XML document should be stored and queried, and query processing on fulltext or XML logical structure should be efficient.
 
-Learn more about the project in the wiki : https://github.com/ymoreau/Restad/wiki
+Learn more about this prototype in the wiki : https://github.com/ymoreau/Restad/wiki
 
 Copyright (C) 2011-2012 LIA (http://www.lia.univ-avignon.fr)
 
